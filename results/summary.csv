@@ -1,0 +1,13 @@
+algorithm,metric,stage,path,hop_count,path_etx,selected_metric_cost,convergence_rounds,control_messages,reachable
+Distance Vector,hop,initial,A->B->D,2,4.540353,2.000000,3,60,True
+Distance Vector,etx,initial,A->E->F->D,3,3.123698,3.123698,4,80,True
+Link State,hop,initial,A->B->D,2,4.540353,2.000000,4,160,True
+Link State,etx,initial,A->E->F->D,3,3.123698,3.123698,4,160,True
+Distance Vector,hop,failure,A->E->F->D,3,3.123698,3.000000,5,90,True
+Distance Vector,etx,failure,A->E->F->D,3,3.123698,3.123698,2,36,True
+Link State,hop,failure,A->E->F->D,3,3.123698,3.000000,5,36,True
+Link State,etx,failure,A->E->F->D,3,3.123698,3.123698,5,36,True
+Distance Vector,hop,recovery,A->B->D,2,4.540353,2.000000,4,80,True
+Distance Vector,etx,recovery,A->E->F->D,3,3.123698,3.123698,2,40,True
+Link State,hop,recovery,A->B->D,2,4.540353,2.000000,4,40,True
+Link State,etx,recovery,A->E->F->D,3,3.123698,3.123698,4,40,True

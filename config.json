@@ -1,0 +1,24 @@
+{
+  "nodes": ["A", "B", "C", "D", "E", "F", "G", "H"],
+  "links": [
+    {"u": "A", "v": "B", "forward": 0.55, "reverse": 0.55, "available": true},
+    {"u": "B", "v": "D", "forward": 0.90, "reverse": 0.90, "available": true},
+    {"u": "A", "v": "E", "forward": 0.98, "reverse": 0.98, "available": true},
+    {"u": "E", "v": "F", "forward": 0.98, "reverse": 0.98, "available": true},
+    {"u": "F", "v": "D", "forward": 0.98, "reverse": 0.98, "available": true},
+    {"u": "B", "v": "C", "forward": 0.95, "reverse": 0.95, "available": true},
+    {"u": "C", "v": "D", "forward": 0.95, "reverse": 0.95, "available": true},
+    {"u": "D", "v": "G", "forward": 0.95, "reverse": 0.95, "available": true},
+    {"u": "G", "v": "H", "forward": 0.95, "reverse": 0.95, "available": true},
+    {"u": "E", "v": "H", "forward": 0.90, "reverse": 0.90, "available": true}
+  ],
+  "source": "A",
+  "destination": "D",
+  "failure_link": ["A", "B"],
+  "distance_vector": {
+    "split_horizon": false,
+    "poison_reverse": true,
+    "maximum_hop_metric": 16,
+    "maximum_rounds": 100
+  }
+}
