@@ -40,19 +40,29 @@ RoutingMetricSimulator/
 |-- requirements.txt
 |-- simulator.py
 |-- topology.py
+|-- volatility_experiment.py
 |-- viva_questions.md
 |-- results/
 |   |-- convergence.png
 |   |-- message_overhead.png
 |   |-- path_quality.png
 |   |-- summary.csv
-|   `-- topology.png
+|   |-- topology.png
+|   `-- volatility/
+|       |-- aggregate.csv
+|       |-- failure_recovery_response.png
+|       |-- path_etx.png
+|       |-- route_switches.png
+|       |-- route_timeline.csv
+|       |-- route_timeline.png
+|       `-- trials.csv
 `-- tests/
     |-- test_distance_vector.py
     |-- test_experiments.py
     |-- test_failures.py
     |-- test_link_state.py
     `-- test_metrics.py
+    `-- test_volatility_experiment.py
 ```
 
 ## Installation
@@ -75,6 +85,28 @@ python -m pytest -q
 ```
 
 Running the program prints the routes and measured values for all four combinations at each stage, then writes figures and `results/summary.csv`. Re-running with the same configuration is deterministic. The spring layout uses a fixed seed.
+
+## Volatility-aware ETX experiment
+
+The separate `volatility_experiment.py` experiment evaluates route switching on top of the existing Link State + ETX candidate-path calculation. It retains the eight-node topology and uses identical seeded link-quality traces for standard ETX, fixed-threshold ETX, and volatility-aware ETX. Scenarios cover low and high variability, gradual deterioration, sudden severe deterioration, and complete failure followed by recovery. This is a source-to-destination policy experiment; it does not change or claim to implement distributed route selection at every router.
+
+Run the default 30 trials of 80 rounds per scenario with recorded seeds 20261028 through 20261057:
+
+```powershell
+python volatility_experiment.py
+```
+
+The output is written separately to `results/volatility/`, leaving the static experiment files untouched. To change the trial count, seed, duration, or policy parameters:
+
+```powershell
+python volatility_experiment.py --trials 50 --seed 500 --rounds 100 `
+  --fixed-threshold 0.10 --minimum-threshold 0.02 `
+  --maximum-threshold 0.45 --ewma-alpha 0.30 --volatility-scale 0.08
+```
+
+The fixed policy switches when `(current ETX - candidate ETX) / current ETX` is greater than or equal to its configured threshold (10% by default). The adaptive policy estimates volatility as an EWMA of the mean relative ETX change across links available in both consecutive rounds, then maps it linearly from the configured minimum to maximum threshold. `--ewma-alpha` controls how quickly the estimate reacts; `--volatility-scale` is the EWMA value at which the maximum threshold is reached. If the selected route becomes unavailable, both hysteresis policies reroute immediately regardless of threshold.
+
+The output includes per-trial measurements and seeds (`trials.csv`), mean and sample standard deviation (`aggregate.csv`), a recorded route timeline (`route_timeline.csv`), and four plots: route switches, average/cumulative ETX, route choices over time, and failure/recovery response. ETX averages and totals include reachable rounds only; unavailable rounds are counted separately. Response is measured in simulation rounds from a complete link event to a usable route (failure) or to return to the pre-failure route (recovery). Link State control-message counts come from the existing flooding model and are shared across strategies; the experiment does not model additional control traffic for a local switching policy.
 
 ## Configuration and scenarios
 

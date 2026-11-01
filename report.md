@@ -161,19 +161,106 @@ After R-S fails in the separate chain, the run without loop prevention records i
 - `results/topology.png`: eight-node graph with the initial Hop Count route and failed-then-restored A-B edge.
 - `results/summary.csv`: all 12 configuration/stage records.
 
-## 14. Limitations
+## 14. Volatility-Aware ETX Route-Selection Experiment
+
+### Motivation and research question
+
+The original experiments use static link delivery probabilities. In a dynamic network, a small improvement in the instantaneous ETX estimate can cause a source to alternate between routes even when the change is short-lived. Hysteresis can reduce such churn, but an overly large threshold can also keep a more expensive route after conditions improve. The question for this project-specific experiment is: **does adapting the route-switching threshold to recent link-quality variation reduce route changes relative to standard ETX while keeping path cost reasonable and preserving immediate rerouting when a selected link fails?**
+
+This is an experimental extension, not a claim that hysteresis, smoothed metrics, or adaptive routing are new. RFC 6719 specifies the RPL Minimum Rank with Hysteresis Objective Function (MRHOF), which minimizes an additive metric while using hysteresis to reduce churn from small metric changes. RFC 8966 specifies Babel, a routing protocol designed for dynamic wired and wireless networks, with support for link-quality estimation and flexible metrics. These works establish relevant prior art; this project does not reproduce either protocol or claim priority over them.
+
+### Scope and route-selection policies
+
+The existing Link State + ETX implementation computes one current candidate path from A to D each simulation round. Three source-to-destination selectors consume the same candidate and the same topology trace:
+
+1. **Standard ETX:** immediately selects the currently lowest-ETX candidate.
+2. **Fixed-threshold ETX:** retains its current usable route unless the candidate's relative improvement reaches the configured threshold (default 10%).
+3. **Volatility-aware ETX:** applies the same comparison with a threshold that increases with recent ETX fluctuations and decreases as the trace stabilizes.
+
+Candidate-path calculation remains separate from the switching policy. This experiment evaluates a source-to-destination choice on top of Link State + ETX; it does not integrate the selectors into every router's distributed route-selection process. If the selected route becomes unavailable, a hysteresis policy switches to an available candidate immediately, irrespective of its threshold.
+
+### Equations and parameters
+
+For current route cost \(C\) and candidate cost \(C^*\), the relative improvement is
+
+\[
+I = \frac{C-C^*}{C}.
+\]
+
+The fixed policy switches when \(I \geq \theta_f\), with \(\theta_f=0.10\) by default. Equality is a switch, as covered by the boundary test.
+
+For every link available in both consecutive rounds, the experiment measures relative ETX change \(r_{e,t}=|E_{e,t}-E_{e,t-1}|/E_{e,t-1}\), caps it at 1, and averages across those links to obtain \(x_t\). The EWMA volatility is
+
+\[
+v_t = \alpha x_t + (1-\alpha)v_{t-1}.
+\]
+
+When no link is available in both samples, the prior EWMA is retained. The adaptive threshold is
+
+\[
+\theta_t = \theta_{\min} +
+\operatorname{clip}\left(\frac{v_t}{s},0,1\right)
+(\theta_{\max}-\theta_{\min}).
+\]
+
+The default parameters are \(\theta_{\min}=0.02\), \(\theta_{\max}=0.45\), \(\alpha=0.30\), and scale \(s=0.08\). Thus stable conditions use a small threshold; volatility at or above \(s\) uses the maximum. All parameters, along with trial count, seed, and duration, can be set on the experiment command line. Availability transitions themselves are excluded from the volatility statistic; immediate failure handling is explicit, rather than encoded as a large quality fluctuation.
+
+### Experimental setup and measurements
+
+The extension keeps the configured eight nodes and uses five 80-round scenarios: low variability, high variability, gradual A-B deterioration, sudden severe A-B deterioration and restoration, and complete E-F failure followed by recovery. Each scenario is run for 30 trials with seeds 20261028 through 20261057. A trial's single generated trace and link events are applied identically to all three strategies. Delivery probabilities remain in \((0,1]\); complete failure is represented by the topology's availability flag.
+
+- **Route switches:** number of changes in the selected path after its initial selection, including transitions to or from unreachable if they occur.
+- **Average selected-route ETX:** arithmetic mean of the selected path's ETX over reachable rounds only.
+- **Cumulative selected-route ETX:** sum of selected path ETX over reachable rounds; one simulation round is one equal-duration sample. Unavailable rounds are counted separately rather than added as infinity.
+- **Unavailable-route rounds:** number of rounds with no selected usable path.
+- **Failure response:** rounds from the E-F failure round to the first selected usable path that avoids E-F. **Recovery response:** rounds from restoration to the first selection of the pre-failure route. A response in the event round is zero rounds.
+- **Control messages:** total transmissions counted by the existing Link State flooding model over the trace. It is the same for all three selectors and is not an estimate of extra traffic generated by a selector; the experiment adds no modeled policy-control messages.
+
+The CSV stores trial seeds and raw measurements. Aggregate tables report the arithmetic mean and sample standard deviation across trials. Graphs are generated directly from these recorded values; the route timeline depicts the recorded default-seed high-variability trial.
+
+### Results and discussion
+
+The following are measured means and sample standard deviations across 30 trials, generated by `python volatility_experiment.py`:
+
+| Scenario | Strategy | Route switches | Average selected ETX | Cumulative selected ETX |
+|---|---|---:|---:|---:|
+| High variability | Standard ETX | 39.03 ± 4.12 | 3.0585 ± 0.0101 | 244.68 ± 0.80 |
+| High variability | Fixed-threshold ETX | 0.50 ± 0.51 | 3.1223 ± 0.0041 | 249.79 ± 0.33 |
+| High variability | Volatility-aware ETX | 5.57 ± 2.62 | 3.1155 ± 0.0087 | 249.24 ± 0.70 |
+| Gradual deterioration | Standard ETX | 1.00 ± 0.00 | 3.1044 ± 0.0002 | 248.35 ± 0.02 |
+| Gradual deterioration | Fixed-threshold ETX | 1.00 ± 0.00 | 3.1176 ± 0.0003 | 249.41 ± 0.02 |
+| Gradual deterioration | Volatility-aware ETX | 1.00 ± 0.00 | 3.1062 ± 0.0002 | 248.50 ± 0.02 |
+| Sudden severe deterioration | Standard ETX | 2.00 ± 0.00 | 2.9073 ± 0.0000 | 232.58 ± 0.00 |
+| Sudden severe deterioration | Fixed-threshold ETX | 2.00 ± 0.00 | 2.9073 ± 0.0000 | 232.58 ± 0.00 |
+| Sudden severe deterioration | Volatility-aware ETX | 2.00 ± 0.00 | 2.9155 ± 0.0000 | 233.24 ± 0.00 |
+| Failure and recovery | All three strategies | 2.00 ± 0.00 | 3.4657 ± 0.0000 | 277.26 ± 0.00 |
+
+In the high-variability scenario, the adaptive policy reduced switches by about 86% relative to standard ETX (5.57 versus 39.03) while averaging ETX 3.1155, below the fixed policy's 3.1223. Standard ETX achieved the lowest average ETX (3.0585), showing the cost of hysteresis; the fixed policy switched even less than the adaptive policy in this particular trace family. Therefore the result supports reduced churn relative to the no-hysteresis baseline, not universal superiority over a fixed threshold.
+
+The sudden-deterioration timeline also shows the opposite trade-off. When A-B's probability returned to 0.80 at round 53, standard and fixed-threshold ETX selected the newly better A-B-D route in that round. For the recorded adaptive trial, the threshold remained elevated: it retained A-E-F-D at rounds 53 and 54, switching at round 55. Across trials, its average ETX was 2.9155 rather than 2.9073. This is a measured example where volatility-aware stability delays a beneficial switch and slightly increases path cost.
+
+During the complete E-F failure and recovery scenario, all strategies recorded zero unavailable-route rounds and zero-round response to both events. All had two route switches. This verifies immediate bypass and recovery for this connected topology. No route was unavailable in any measured trial. In the static low-variability case all policies selected the same path with no switches. Control-message counts were identical across strategies because all use the same Link State flooding trace; they measure the underlying modeled flooding only.
+
+### Trade-offs and limitations
+
+These are synthetic 8-node traces and 30 paired trials, not measurements from a live network. The random variation is limited to configured link probabilities; ETX still assumes independent transmissions and does not model packet sampling noise, traffic, timers, propagation, or actual convergence delay. The adaptive estimator observes aggregate link ETX changes at each simulation round, including links not on the selected route; another observation window or volatility statistic could yield different results. Its parameter values are illustrative and are not tuned or claimed optimal. The fixed policy performed especially well on route-switch count in the tested high-variability scenario, while standard ETX retained the lowest path cost. Failure response is measured in discrete rounds and is zero by construction when an alternative is available in the event round. Control-message counts exclude selector-specific communications because none are modeled. The policy operates only at the queried source/destination pair and is not a distributed routing-protocol modification.
+
+The extension's command, configurable options, data files, and figures are described in the README. Its outputs are separate from the original static experiment.
+
+## 15. Limitations
 
 The synchronous round model gives every node a common update boundary and does not model asynchronous delivery, timers, propagation, processing delays, or control-message loss. Therefore round counts cannot be interpreted as seconds and do not provide a real-time comparison. The topology is small, fixed, and undirected. Delivery probabilities remain deterministic and static. The control-message comparison counts transmissions rather than message sizes. Finally, the simplified protocol models illustrate their key mechanisms but are not complete RIP or OSPF standards implementations.
 
-## 15. Conclusion
+## 16. Conclusion
 
 The implementation successfully compares two explicit routing algorithms across two metrics and link events. On the configured A-to-D network, Hop Count chooses A-B-D while ETX chooses the longer A-E-F-D route with lower computed ETX. A-B failure triggers an alternate route, and recovery restores the Hop Count preference. The separate chain exhibits count to infinity without loop prevention; split horizon and poison reverse stop that specific sequence. These conclusions apply to the executed simulation only.
 
-## 16. References
+## 17. References
 
 1. D. S. J. De Couto, D. Aguayo, J. Bicket, and R. Morris, “A High-Throughput Path Metric for Multi-Hop Wireless Routing,” *Proceedings of the 9th Annual International Conference on Mobile Computing and Networking (MobiCom '03)*, 2003, pp. 134–146. DOI: [10.1145/938985.939000](https://doi.org/10.1145/938985.939000). Title, authors, pagination, and DOI checked against Crossref metadata.
 2. G. Malkin, “RIP Version 2,” RFC 2453, Internet Engineering Task Force, November 1998. [https://www.rfc-editor.org/rfc/rfc2453](https://www.rfc-editor.org/rfc/rfc2453).
 3. J. Moy, “OSPF Version 2,” RFC 2328, Internet Engineering Task Force, April 1998. [https://www.rfc-editor.org/rfc/rfc2328](https://www.rfc-editor.org/rfc/rfc2328).
 4. J. J. Garcia-Luna-Aceves, “Loop-Free Routing Using Diffusing Computations,” *IEEE/ACM Transactions on Networking*, vol. 1, no. 1, pp. 130–141, 1993.
 5. J. F. Kurose and K. W. Ross, *Computer Networking: A Top-Down Approach*, 8th ed., Pearson, 2021.
-
+6. O. Gnawali and P. Levis, “The Minimum Rank with Hysteresis Objective Function,” RFC 6719, Internet Engineering Task Force, September 2012. [https://www.rfc-editor.org/rfc/rfc6719](https://www.rfc-editor.org/rfc/rfc6719).
+7. J. Chroboczek and D. Schinazi, “The Babel Routing Protocol,” RFC 8966, Internet Engineering Task Force, January 2021. [https://www.rfc-editor.org/rfc/rfc8966](https://www.rfc-editor.org/rfc/rfc8966).

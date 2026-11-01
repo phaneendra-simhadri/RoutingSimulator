@@ -1,0 +1,16 @@
+scenario,strategy,trials,route_switches_mean,route_switches_stdev,average_selected_etx_mean,average_selected_etx_stdev,cumulative_selected_etx_mean,cumulative_selected_etx_stdev,unavailable_route_rounds_mean,unavailable_route_rounds_stdev,failure_response_rounds_mean,failure_response_rounds_stdev,recovery_response_rounds_mean,recovery_response_rounds_stdev,link_state_control_messages_mean,link_state_control_messages_stdev
+Low variability,Standard ETX,30,0.0,0.0,3.123698458975427,0.0,249.89587671803417,0.0,0.0,0.0,,0.0,,0.0,3320.0,0.0
+Low variability,Fixed-threshold ETX,30,0.0,0.0,3.123698458975427,0.0,249.89587671803417,0.0,0.0,0.0,,0.0,,0.0,3320.0,0.0
+Low variability,Volatility-aware ETX,30,0.0,0.0,3.123698458975427,0.0,249.89587671803417,0.0,0.0,0.0,,0.0,,0.0,3320.0,0.0
+High variability,Standard ETX,30,39.03333333333333,4.122966234971206,3.0585313725142105,0.010054757568288043,244.68250980113683,0.8043806054630422,0.0,0.0,,0.0,,0.0,3320.0,0.0
+High variability,Fixed-threshold ETX,30,0.5,0.5085476277156078,3.1223196421711497,0.004115509144170109,249.785571373692,0.32924073153360994,0.0,0.0,,0.0,,0.0,3320.0,0.0
+High variability,Volatility-aware ETX,30,5.566666666666666,2.6219673231522473,3.1155229091949064,0.00870360711684835,249.24183273559254,0.6962885693478683,0.0,0.0,,0.0,,0.0,3320.0,0.0
+Gradual deterioration,Standard ETX,30,1.0,0.0,3.1044160253307758,0.00018929695963613963,248.35328202646207,0.015143756770890658,0.0,0.0,,0.0,,0.0,3320.0,0.0
+Gradual deterioration,Fixed-threshold ETX,30,1.0,0.0,3.117640974115871,0.00027833579037842704,249.41127792926966,0.02226686323027249,0.0,0.0,,0.0,,0.0,3320.0,0.0
+Gradual deterioration,Volatility-aware ETX,30,1.0,0.0,3.1062031121039055,0.0002444146624773629,248.49624896831247,0.019553172998190333,0.0,0.0,,0.0,,0.0,3320.0,0.0
+Sudden severe deterioration,Standard ETX,30,2.0,0.0,2.9073057144721077,0.0,232.5844571577686,0.0,0.0,0.0,,0.0,,0.0,240.0,0.0
+Sudden severe deterioration,Fixed-threshold ETX,30,2.0,0.0,2.9073057144721077,0.0,232.5844571577686,0.0,0.0,0.0,,0.0,,0.0,240.0,0.0
+Sudden severe deterioration,Volatility-aware ETX,30,2.0,0.0,2.9154714784156295,0.0,233.23771827325032,0.0,0.0,0.0,,0.0,,0.0,240.0,0.0
+Failure and recovery,Standard ETX,30,2.0,0.0,3.4657406449534465,0.0,277.2592515962757,0.0,0.0,0.0,0.0,0.0,0.0,0.0,236.0,0.0
+Failure and recovery,Fixed-threshold ETX,30,2.0,0.0,3.4657406449534465,0.0,277.2592515962757,0.0,0.0,0.0,0.0,0.0,0.0,0.0,236.0,0.0
+Failure and recovery,Volatility-aware ETX,30,2.0,0.0,3.4657406449534465,0.0,277.2592515962757,0.0,0.0,0.0,0.0,0.0,0.0,0.0,236.0,0.0

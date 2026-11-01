@@ -59,3 +59,42 @@ It uses a small fixed undirected network, fixed probabilities, and synchronous r
 
 ### 20. What conclusions can be drawn from the actual experimental results?
 In the configured A-to-D experiment, Hop Count chooses the two-hop A-B-D path, but ETX chooses the three-hop A-E-F-D path with lower computed ETX. The A-B failure causes a detour and recovery restores the Hop Count path. These are results for this configuration, not a claim that one protocol or metric is always best.
+
+### 21. What is the volatility-aware ETX extension?
+It is a separate experiment that changes how one source chooses among routes already calculated by Link State + ETX. It does not replace the routing algorithms or change the original static experiment.
+
+### 22. Why can a routing policy use a switching threshold?
+If two route costs are very close, small link-quality changes can make the nominally best route alternate repeatedly. A threshold, also called hysteresis, asks that a new route be sufficiently better before switching.
+
+### 23. How does the fixed-threshold policy decide to switch?
+It calculates the candidate's improvement relative to the selected route: `(current ETX - candidate ETX) / current ETX`. With the default 10% setting, it switches when this value is at least 0.10. Equality counts as meeting the threshold.
+
+### 24. How does the volatility-aware threshold work?
+It estimates recent fluctuation as an exponentially weighted average of relative ETX changes on links available in consecutive rounds. The estimate maps between a minimum and maximum switching threshold. Stable link quality gives a smaller threshold; high volatility gives a larger one.
+
+### 25. What does the EWMA parameter control?
+The EWMA alpha controls how quickly the estimate reacts. A larger alpha gives more weight to the newest fluctuation; a smaller alpha smooths changes over more rounds. The volatility scale determines how much fluctuation is needed to reach the maximum threshold.
+
+### 26. Does the policy keep using a route after it fails?
+No. If the selected route becomes unavailable, the policy immediately selects an available alternative, even if its ETX improvement does not meet the hysteresis threshold.
+
+### 27. What was compared in the dynamic experiment?
+Standard ETX, fixed-threshold ETX, and volatility-aware ETX each made source-to-destination choices over the same seeded link-quality traces. Scenarios include low/high variability, gradual deterioration, sudden deterioration and restoration, and a complete link failure and recovery.
+
+### 28. What did the 30-trial high-variability results show?
+Standard ETX averaged 39.03 route switches and ETX 3.0585. The adaptive policy averaged 5.57 switches and ETX 3.1155; the fixed policy switched only 0.50 times on average and had ETX 3.1223. The adaptive policy reduced churn relative to standard ETX, but did not beat the fixed policy on switch count or standard ETX on path cost.
+
+### 29. Can extra stability have a downside?
+Yes. In the sudden-deterioration experiment, the adaptive policy kept the old route for two rounds after link quality recovered, while standard and fixed-threshold ETX switched in the recovery round. The adaptive policy consequently had slightly higher mean ETX in that scenario.
+
+### 30. Does the extension modify every router's distributed route selection?
+No. It evaluates a single A-to-D route choice using candidates from the existing Link State + ETX implementation. It does not claim integration into each router's distributed route-selection process.
+
+### 31. What does a zero-round failure response mean?
+The selected link failed and an alternate route was chosen during the same modeled round. It does not mean zero seconds or real-world instantaneous convergence.
+
+### 32. Where are the extension's results and how can it be run?
+Run `python volatility_experiment.py`. The default run executes 30 trials per scenario and stores CSV measurements and graphs in `results/volatility/`, separately from the original results.
+
+### 33. Is volatility-aware routing a new idea?
+No such claim is made. RFC 6719 describes hysteresis for metric-based route selection, and RFC 8966 describes Babel's support for dynamic networks and link-quality metrics. This project tests one configurable, project-specific threshold policy.
