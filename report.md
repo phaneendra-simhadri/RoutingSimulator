@@ -2,7 +2,7 @@
 
 ## 1. Abstract
 
-This project implements and compares two routing approaches—Distance Vector using synchronous Bellman–Ford updates and Link State using controlled LSA flooding followed by per-node Dijkstra computation. Each is evaluated using Hop Count and Expected Transmission Count (ETX) on the same fixed eight-node network. The simulator executes initial discovery, a configured A-B link failure, and restoration; it records paths, route costs, synchronous convergence rounds, and simulated control-message transmissions. A separate four-node experiment demonstrates count to infinity and tests split horizon and poison reverse. In the measured A-to-D route, both algorithms select A-B-D under Hop Count (2 hops, ETX 4.540353) and A-E-F-D under ETX (3 hops, ETX 3.123698). These are simulation results for the supplied deterministic configuration, not real network performance measurements.
+This project implements synchronous Distance Vector and Link State routing and compares Hop Count with Expected Transmission Count (ETX) on a reproducible eight-node topology. Beyond that comparison, it proposes and implements a volatility-aware ETX route selector: the selector adjusts its switching threshold using recent link-quality variation and overrides that threshold when its current route fails. The simulator also measures update rounds and modeled control-message transmissions during initial discovery, one link failure, and recovery; a separate chain experiment demonstrates count to infinity and tests split horizon and poison reverse. In 30 high-variability trials, the proposed selector averaged 5.57 route changes versus 39.03 for standard ETX, while retaining a higher mean ETX than standard ETX. This is a controlled simulation study, not a real-network performance claim or proof that the underlying ideas are new. The project contribution is the adaptive selector design and implementation, together with a reproducible evaluation of its stability-versus-path-cost trade-off.
 
 ## 2. Introduction
 
@@ -21,7 +21,18 @@ The minimum-hop path can be less desirable when it contains a lossy link. Routin
 3. Implement Hop Count and ETX consistently for both protocols.
 4. Measure routes, convergence rounds, and control-message transmissions for initial, failure, and recovery stages.
 5. Demonstrate count to infinity and observe split horizon and poison reverse on a small separate topology.
-6. Validate calculations, failures, recovery, convergence, and reproducibility with automated tests.
+6. Compare standard ETX, fixed-threshold hysteresis, and volatility-aware hysteresis on identical seeded link-quality traces.
+7. Validate calculations, failures, recovery, convergence, and reproducibility with automated tests.
+
+### Project-specific contribution
+
+The project does not claim to invent ETX, hysteresis, or either routing protocol. Its contribution is an integrated and reproducible evaluation with two connected parts:
+
+- The core simulator runs both routing protocols with both metrics on the same topology and link-event sequence, and reports route choices alongside clearly defined synchronous update rounds and control-message transmission counts.
+- The project proposes and implements a **volatility-aware ETX route selector**. It estimates recent network-wide link-quality volatility with an EWMA, maps that estimate to a bounded route-switching threshold, and immediately leaves a failed route regardless of the threshold.
+- The experiment evaluates this selector against standard ETX and fixed-threshold hysteresis on the same generated trace in every trial, measuring both route changes and path cost.
+
+Thus, the work is not only a comparison: it includes a designed adaptive decision rule and a failure-response behavior in the implemented selector. The evaluation exposes both sides of its trade-off: fewer route changes can come at the cost of a higher path ETX or a delayed beneficial switch. The claim is a project-level design and implementation contribution; it is not a claim that adaptive thresholds or hysteresis are new to the field.
 
 ## 5. Literature Review
 
@@ -161,15 +172,17 @@ After R-S fails in the separate chain, the run without loop prevention records i
 - `results/topology.png`: eight-node graph with the initial Hop Count route and failed-then-restored A-B edge.
 - `results/summary.csv`: all 12 configuration/stage records.
 
-## 14. Volatility-Aware ETX Route-Selection Experiment
+## 14. Proposed Method and Evaluation: Volatility-Aware ETX Route Selection
 
 ### Motivation and research question
 
 The original experiments use static link delivery probabilities. In a dynamic network, a small improvement in the instantaneous ETX estimate can cause a source to alternate between routes even when the change is short-lived. Hysteresis can reduce such churn, but an overly large threshold can also keep a more expensive route after conditions improve. The question for this project-specific experiment is: **does adapting the route-switching threshold to recent link-quality variation reduce route changes relative to standard ETX while keeping path cost reasonable and preserving immediate rerouting when a selected link fails?**
 
-This is an experimental extension, not a claim that hysteresis, smoothed metrics, or adaptive routing are new. RFC 6719 specifies the RPL Minimum Rank with Hysteresis Objective Function (MRHOF), which minimizes an additive metric while using hysteresis to reduce churn from small metric changes. RFC 8966 specifies Babel, a routing protocol designed for dynamic wired and wireless networks, with support for link-quality estimation and flexible metrics. These works establish relevant prior art; this project does not reproduce either protocol or claim priority over them.
+This section describes the project's proposed selector as well as its evaluation. Hysteresis, smoothed metrics, and adaptive routing have prior art; this project does not claim those general ideas as new. RFC 6719 specifies the RPL Minimum Rank with Hysteresis Objective Function (MRHOF), which minimizes an additive metric while using hysteresis to reduce churn from small metric changes. RFC 8966 specifies Babel, a routing protocol designed for dynamic wired and wireless networks, with support for link-quality estimation and flexible metrics. This project does not reproduce either protocol or claim priority over them. Its specific design choice is to derive a bounded ETX switching threshold from an EWMA of relative link-quality variation, while handling loss of the selected route as an immediate failover condition. The evaluation compares this implemented rule with standard ETX and fixed-threshold hysteresis on identical seeded traces.
 
 ### Scope and route-selection policies
+
+The proposed selector is a decision layer on top of the Link State + ETX candidate route calculation. On each simulation round it observes link quality, updates its volatility estimate, and decides whether to retain the selected route or accept the current lower-ETX candidate. If the selected route is no longer usable, it switches immediately to an available candidate; if none exists, the selected route becomes unreachable. The adaptive threshold therefore governs quality-driven changes, not failure recovery.
 
 The existing Link State + ETX implementation computes one current candidate path from A to D each simulation round. Three source-to-destination selectors consume the same candidate and the same topology trace:
 
@@ -247,13 +260,17 @@ These are synthetic 8-node traces and 30 paired trials, not measurements from a 
 
 The extension's command, configurable options, data files, and figures are described in the README. Its outputs are separate from the original static experiment.
 
-## 15. Limitations
+## 15. Limitations and Threats to Validity
 
-The synchronous round model gives every node a common update boundary and does not model asynchronous delivery, timers, propagation, processing delays, or control-message loss. Therefore round counts cannot be interpreted as seconds and do not provide a real-time comparison. The topology is small, fixed, and undirected. Delivery probabilities remain deterministic and static. The control-message comparison counts transmissions rather than message sizes. Finally, the simplified protocol models illustrate their key mechanisms but are not complete RIP or OSPF standards implementations.
+The core protocol comparison uses a small, fixed, undirected topology and one configured link-failure/recovery sequence. Its synchronous round model gives every node a common update boundary and does not model asynchronous delivery, timers, propagation, processing delays, or control-message loss. Round counts therefore cannot be interpreted as seconds or as real-time convergence. The core experiment uses configured delivery probabilities; the extension instead generates synthetic probability traces. Neither experiment models actual wireless traffic, packet sampling, or a live network.
+
+Control-message results count transmissions rather than message sizes, so they are not byte or bandwidth comparisons. The extension uses 30 trials per scenario, selected parameter values, and an EWMA based on links available in consecutive samples; different topologies, traces, observation rules, and parameter tuning could change the results. Its policy runs only for one source-destination pair and does not modify distributed route selection at every router. Finally, the protocol models illustrate selected mechanisms and are not complete RIP or OSPF implementations. These constraints limit generalization; the reported findings apply to the stated simulator, configuration, and experiment.
 
 ## 16. Conclusion
 
-The implementation successfully compares two explicit routing algorithms across two metrics and link events. On the configured A-to-D network, Hop Count chooses A-B-D while ETX chooses the longer A-E-F-D route with lower computed ETX. A-B failure triggers an alternate route, and recovery restores the Hop Count preference. The separate chain exhibits count to infinity without loop prevention; split horizon and poison reverse stop that specific sequence. These conclusions apply to the executed simulation only.
+The core experiment shows that, on the configured A-to-D network, Hop Count chooses A-B-D while ETX chooses the longer A-E-F-D route with lower computed ETX. The A-B failure triggers an alternate route, and recovery restores the Hop Count preference. On the separate chain, count to infinity occurs without loop prevention; split horizon and poison reverse stop that sequence in this experiment.
+
+The project-specific extension shows a measurable stability-cost trade-off. In the high-variability scenario, volatility-aware hysteresis reduced mean route changes from 39.03 with standard ETX to 5.57 across 30 trials, but standard ETX retained the lowest mean path cost. The adaptive policy also delayed a beneficial route switch in the measured sudden-restoration example. Taken together, the results support the value of comparing churn and route cost together; they do not establish that one policy is universally best. The contribution is the implemented, reproducible evaluation and these scenario-specific findings, not a claim of a new routing algorithm. All conclusions are limited to the simulated topologies, traces, and parameters.
 
 ## 17. References
 
